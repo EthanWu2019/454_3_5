@@ -1,35 +1,8 @@
-"""
-============================================================
-  PyBank Testing Exercise — Student Test File
-============================================================
-
-Your goal: find and document all bugs hidden in the pybank library.
-
-Instructions:
-  1. Write tests in the classes below using Python's `unittest` framework.
-  2. A passing test means the library behaves correctly.
-     A FAILING test means you've found (or confirmed) a bug.
-  3. For every bug you find, add a comment above the test explaining:
-       - What the bug is
-       - Where it lives (file + line number if possible)
-       - What the correct behaviour should be
-
-Run your tests with:
-    python -m pytest tests/test_pybank.py -v
-  or:
-    python -m unittest tests/test_pybank.py -v
-
-There are 6 bugs total hidden across account.py and bank.py.
-Good luck!
-============================================================
-"""
-
 import unittest
 from pybank import Account, Bank, Transaction, TransactionType
 
-
 # ---------------------------------------------------------------------------
-# Section 1 — Account tests
+# Section 1 - Account tests
 # ---------------------------------------------------------------------------
 
 class TestAccountCreation(unittest.TestCase):
@@ -42,7 +15,17 @@ class TestAccountCreation(unittest.TestCase):
         self.assertEqual(acct.account_id, "ACC001")
         self.assertEqual(acct.balance, 100.0)
 
-    # TODO: Write tests for invalid inputs (empty owner, empty id, negative balance)
+    def test_invalid_account_creation_empty_strings(self):
+        """Account creation should fail with empty owner or id."""
+        with self.assertRaises(ValueError):
+            Account("", "ACC001")
+        with self.assertRaises(ValueError):
+            Account("Alice", "")
+
+    def test_invalid_account_creation_negative_balance(self):
+        """Account creation should fail with negative initial balance."""
+        with self.assertRaises(ValueError):
+            Account("Alice", "ACC001", -50.0)
 
 
 class TestDeposit(unittest.TestCase):
@@ -53,10 +36,19 @@ class TestDeposit(unittest.TestCase):
         acct.deposit(50.0)
         self.assertEqual(acct.balance, 50.0)
 
-    # TODO: Write tests for:
-    #   - Depositing zero
-    #   - Depositing a negative amount
-    #   - Multiple sequential deposits
+    def test_deposit_zero_or_negative_raises(self):
+        """Deposit must be strictly positive."""
+        acct = Account("Alice", "ACC001", 0.0)
+        with self.assertRaises(ValueError):
+            acct.deposit(0.0)
+        with self.assertRaises(ValueError):
+            acct.deposit(-10.0)
+
+    def test_multiple_sequential_deposits(self):
+        acct = Account("Alice", "ACC001", 0.0)
+        acct.deposit(10.0)
+        acct.deposit(20.0)
+        self.assertEqual(acct.balance, 30.0)
 
 
 class TestWithdrawal(unittest.TestCase):
@@ -72,8 +64,14 @@ class TestWithdrawal(unittest.TestCase):
         with self.assertRaises(ValueError):
             acct.withdraw(100.0)
 
-    # TODO: Write a test that withdraws the EXACT balance (e.g. balance=100, withdraw=100).
-    #       Should this succeed or raise? What does the library actually do?
+    def test_withdraw_exact_balance(self):
+        """
+        Suspected Bug: Wrong logic / incorrect operator
+        Testing boundary condition: withdrawing exactly the total balance.
+        """
+        acct = Account("Alice", "ACC001", 100.0)
+        acct.withdraw(100.0) 
+        self.assertEqual(acct.balance, 0.0)
 
 
 class TestTransactionHistory(unittest.TestCase):
@@ -93,23 +91,45 @@ class TestTransactionHistory(unittest.TestCase):
         history = self.acct.get_transaction_history()
         self.assertEqual(len(history), 3)
 
-    # TODO: Write a test requesting `limit=1`, `limit=2`, `limit=3`.
-    #       Does the returned list length match the limit you requested?
+    def test_history_with_limit(self):
+        """
+        Suspected Bug: Off-by-one error
+        Testing if limit returns exactly the requested quantity.
+        """
+        self.assertEqual(len(self.acct.get_transaction_history(limit=1)), 1)
+        self.assertEqual(len(self.acct.get_transaction_history(limit=2)), 2)
+        self.assertEqual(len(self.acct.get_transaction_history(limit=3)), 3)
 
-    # TODO: Write a test for limit on an account with NO transactions.
+    def test_history_limit_no_transactions(self):
+        empty_acct = Account("Empty", "ACC003", 0.0)
+        self.assertEqual(len(empty_acct.get_transaction_history(limit=5)), 0)
 
 
 class TestStatementSummary(unittest.TestCase):
     """Tests for Account.get_statement_summary"""
 
-    # TODO: Write tests verifying total_deposits, total_withdrawals,
-    #       net_change, and transaction_count.
-    #       Include a test for an account with zero transactions.
-    pass
+    def test_statement_summary_values(self):
+        acct = Account("Charlie", "ACC003", 50.0)
+        acct.deposit(100.0)
+        acct.withdraw(20.0)
+        summary = acct.get_statement_summary()
+        
+        self.assertEqual(summary["total_deposits"], 100.0)
+        self.assertEqual(summary["total_withdrawals"], 20.0)
+        self.assertEqual(summary["net_change"], 80.0)
+        self.assertEqual(summary["transaction_count"], 2)
+
+    def test_statement_summary_zero_transactions(self):
+        acct = Account("Charlie", "ACC003", 50.0)
+        summary = acct.get_statement_summary()
+        self.assertEqual(summary["total_deposits"], 0.0)
+        self.assertEqual(summary["total_withdrawals"], 0.0)
+        self.assertEqual(summary["net_change"], 0.0)
+        self.assertEqual(summary["transaction_count"], 0)
 
 
 # ---------------------------------------------------------------------------
-# Section 2 — Bank tests
+# Section 2 - Bank tests
 # ---------------------------------------------------------------------------
 
 class TestBankAccountManagement(unittest.TestCase):
@@ -128,10 +148,19 @@ class TestBankAccountManagement(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.bank.create_account("Bob", "A1")
 
-    # TODO: Write a test calling get_account(None).
-    #       What error is raised? Is it the right kind of error?
+    def test_get_account_with_none(self):
+        """
+        Suspected Bug: Edge case - None input
+        """
+        with self.assertRaises(KeyError):
+            self.bank.get_account(None)
 
-    # TODO: Write a test calling get_account("") (empty string).
+    def test_get_account_with_empty_string(self):
+        """
+        Suspected Bug: Edge case - empty input
+        """
+        with self.assertRaises(KeyError):
+            self.bank.get_account("")
 
 
 class TestTransfer(unittest.TestCase):
@@ -151,17 +180,30 @@ class TestTransfer(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.bank.transfer("A1", "A1", 50.0)
 
-    # TODO: Write a test that transfers the EXACT balance of the source account.
-    #       Does it succeed? Should it?
+    def test_transfer_exact_balance(self):
+        """
+        Suspected Bug: Wrong logic / incorrect operator
+        Testing boundary condition for transfer logic.
+        """
+        self.bank.transfer("A1", "B1", 200.0)
+        self.assertEqual(self.bank.get_account("A1").balance, 0.0)
+        self.assertEqual(self.bank.get_account("B1").balance, 250.0)
 
 
 class TestTotalAssets(unittest.TestCase):
     """Tests for Bank.total_assets"""
 
-    # TODO: Write a test for total_assets on a bank with multiple accounts.
+    def test_total_assets_multiple_accounts(self):
+        bank = Bank("TestBank")
+        bank.create_account("Alice", "A1", 100.50)
+        bank.create_account("Bob", "B1", 200.25)
+        self.assertEqual(bank.total_assets(), 300.75)
 
-    # TODO: Write a test for total_assets on a bank with NO accounts.
-    #       Check the TYPE of the return value — is it a float?
+    def test_total_assets_no_accounts(self):
+        bank = Bank("TestBank")
+        assets = bank.total_assets()
+        self.assertEqual(assets, 0.0)
+        self.assertIsInstance(assets, float)
 
 
 class TestFindAccountsByOwner(unittest.TestCase):
@@ -185,10 +227,19 @@ class TestFindAccountsByOwner(unittest.TestCase):
         results = self.bank.find_accounts_by_owner("Charlie")
         self.assertEqual(results, [])
 
-    # TODO: Write a test passing None as the owner argument.
-    #       What error is raised? Is it the right kind of error?
+    def test_find_accounts_none_owner(self):
+        """
+        Suspected Bug: Edge case - None input
+        """
+        with self.assertRaises(ValueError):
+            self.bank.find_accounts_by_owner(None)
 
-    # TODO: Write a test passing an empty string.
+    def test_find_accounts_empty_owner(self):
+        """
+        Suspected Bug: Edge case - empty string input
+        """
+        with self.assertRaises(ValueError):
+            self.bank.find_accounts_by_owner("")
 
 
 if __name__ == "__main__":
